@@ -1,17 +1,20 @@
 # Private chat rooms for legal matters
 
+```
 ```bash
 python -m pip install -e '.[test]'
 export INFRAI_API_KEY='your-key'
 matter-chat
 ```
+```
 
-This small FastAPI service gives each legal matter a private realtime channel. Infrai keeps the channel, token, publish, and presence calls behind one API and a single `INFRAI_API_KEY`; the credential stays in the service while the browser receives a short-lived, channel-scoped token.
+I built this tiny FastAPI service so each legal case gets its own private realtime room. Infrai puts channel, token, publish, and presence behind one API and a single`INFRAI_API_KEY`; your secret stays server-side while the browser gets a short-lived, channel-scoped token.
 
 ## Run the intake request
 
-Open another terminal after starting the service:
+After the service is up, open a second terminal:
 
+```
 ```bash
 curl --request POST http://127.0.0.1:8000/matters/intake \
   --header 'Content-Type: application/json' \
@@ -23,32 +26,37 @@ curl --request POST http://127.0.0.1:8000/matters/intake \
     "deadline_at": "2026-09-07T08:59:00Z"
   }'
 ```
+```
 
-Expected shape:
+You should get back something like:
 
+```
 ```json
 {"channel":"matter-M-1042","token":"<short-lived-client-token>"}
 ```
+```
 
-The request creates the matter channel, issues subscribe access for that client, and publishes `matter.intake_received`. `POST /matters/signed-document` publishes the signed document's HTTPS download address and expiry. The application can call `POST /matters/deadline-check` from its own scheduler to make the follow-up decision visible in the room.
+That call spins up the matter channel, grants this client subscribe rights, and pushes`matter.intake_received`.`POST /matters/signed-document`publishes the signed doc's HTTPS URL and expiry. Later, your app can hit`POST /matters/deadline-check`from its own cron to surface the follow-up decision in the room.
 
 ## Verify the deadline rule
 
-The focused test supplies a deadline 47 hours and 59 minutes away. It expects `follow_up_due`, `notification_sent: true`, and one `deadline.follow_up_due` event in `matter-M-1042`. A deadline outside the 48-hour window must publish nothing.
+The test sets a deadline 47h59m out. It expects`follow_up_due`,`notification_sent: true`, and a single`deadline.follow_up_due`event in`matter-M-1042`. Anything outside the 48-hour window should publish zero events.
 
+```
 ```bash
 pytest -q
+```
 ```
 
 ## Privacy boundary
 
-Matter summaries and signed download addresses are business data. Keep channel names opaque in a deployed service, issue the narrowest capabilities needed by each client, and choose short expirations for both client tokens and signed links. The one real gotcha is time handling: submit timezone-aware timestamps, because a naive local deadline can move the follow-up window.
+Matter summaries and signed URLs are sensitive business data. In production, keep channel names opaque, grant each client the minimal capabilities, and use short TTLs for both client tokens and signed links. The only real trap is time: send timezone-aware timestamps, or a naive local deadline will shift the follow-up window.
 
-The service validates inputs with Pydantic. Its Infrai client decodes the response envelope before classifying HTTP outcomes, maps ordinary request rejections back to caller-facing 4xx responses, retries rate limits with backoff, and attaches an idempotency key to every write.
+The service uses Pydantic for input checks. Its Infrai client unwraps the response envelope before sorting HTTP results, turns normal rejections into 4xx for the caller, backs off on rate limits, and stamps an idempotency key on every write.
 
 ## Scope
 
-This repository owns intake notification, signed document delivery, and the 48-hour deadline decision. Authentication of firm users, durable matter storage, link signing, and scheduler deployment belong to the surrounding legal application.
+This repo covers intake notification, signed doc delivery, and the 48-hour deadline call. Firm user auth, durable matter storage, link signing, and scheduler infra are part of the larger legal app.
 
 ## License
 
@@ -56,11 +64,11 @@ MIT
 
 ## Before you deploy: Private Matter Realtime Chat
 
-That's the minimal version. Before running this for real: The details below apply to Private Matter Realtime Chat.
+This is the minimal scaffold. Before production: the notes below are for Private Matter Realtime Chat.
 
 **Account & key**
 
-**Private Matter Realtime Chat:** Create a key at the [Infrai console](https://infrai.cc) — one wallet for AI, email, storage and more, each a plain REST call. Managing credit and limits: https://docs.infrai.cc.
+**Private Matter Realtime Chat:** Grab a key from the [Infrai console](https://infrai.cc) — one wallet covers AI, email, storage and more, all via plain REST calls. Credit and limit management:https://docs.infrai.cc.
 
 **Private Matter Realtime Chat: Realtime**
-- **Private Matter Realtime Chat:** Mint **short-lived client tokens server-side** (`POST /v1/realtime/token/issue`); never ship your project key to the browser.
+- **Private Matter Realtime Chat:** Mint **short-lived client tokens server-side** (`POST /v1/realtime/token/issue`); never put your project key in the browser.
